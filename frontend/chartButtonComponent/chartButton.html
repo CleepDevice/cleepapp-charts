@@ -1,0 +1,7 @@
+<div>
+    <md-button ng-click="chartButtonCtl.openChartDialog()" class="{{chartButtonCtl.buttonClass}}" aria-label="Chart dialog">
+        <md-icon md-svg-icon="chart-line"></md-icon>
+        <md-tooltip md-direction="top">Display chart</md-tooltip>
+        <span ng-if="!chartButtonCtl.buttonLabel.length==0">{{chartButtonCtl.buttonLabel}}</span>
+    </md-button>
+</div>

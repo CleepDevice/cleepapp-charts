@@ -1,3 +1,7 @@
 {
-    "icon": "database"
+    "icon": "chart-areaspline",
+    "global": {
+        "js": ["charts.service.js", "chartButtonComponent/chartButton.js", "chartComponent/chart.js"],
+        "html": ["chartButtonComponent/chartDialog.html", "chartButtonComponent/chartButton.html", "chartComponent/chart.html"]
+    }
 }

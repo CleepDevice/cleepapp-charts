@@ -7,31 +7,36 @@ import logging
 from raspiot.raspiot import RaspIotModule
 from raspiot.utils import CommandError, MissingParameter, InvalidParameter
 import time
+import threading
 
-__all__ = [u'Database']
+__all__ = [u'Charts']
 
-class Database(RaspIotModule):
+class Charts(RaspIotModule):
     """
-    Module that provides data storage in local database
+    Module that provides data storage in local database for charts generation
     Also unlock sensors and system charts
     """
     MODULE_AUTHOR = u'Cleep'
     MODULE_VERSION = u'1.0.0'
     MODULE_PRICE = 0
     MODULE_DEPS = []
-    MODULE_DESCRIPTION = u'Database module gives you access to chart feature allowing you to follow easily your devices.'
-    MODULE_LOCKED = False
-    MODULE_TAGS = [u'sensors', u'graphs', u'charts']
+    MODULE_DESCRIPTION = u'Follow easily your sensors values graphically.'
+    MODULE_LONGDESCRIPTION = u'Charts application automatically generates charts according to your connected sensors values.<br> \
+                             It allows you to follow in time the evolution of the measurements of your sensors'
+    MODULE_CATEGORY = u'APPLICATION'
+    MODULE_TAGS = [u'sensors', u'graphs', u'charts', u'database']
     MODULE_COUNTRY = None
-    MODULE_URLINFO = None
-    MODULE_URLHELP = None
+    MODULE_URLINFO = u'https://github.com/tangb/cleepmod-charts'
+    MODULE_URLHELP = u'https://github.com/tangb/cleepmod-charts/wiki'
     MODULE_URLSITE = None
-    MODULE_URLBUGS = None
+    MODULE_URLBUGS = u'https://github.com/tangb/cleepmod-charts/issues'
 
-    MODULE_CONFIG_FILE = u'database.conf'
+    MODULE_CONFIG_FILE = u'charts.conf'
 
-    DATABASE_PATH = u'/var/opt/raspiot/databases'
-    DATABASE_NAME = u'raspiot.db'
+    DATABASE_PATH = u'/etc/raspiot/charts'
+    DATABASE_NAME = u'charts.db'
+    #for debug only, to avoid exception during session closing
+    CHECK_SAME_THREAD = True
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -45,38 +50,39 @@ class Database(RaspIotModule):
         RaspIotModule.__init__(self, bootstrap, debug_enabled)
 
         #member
-        self.__cnx = None
-        self.__cur = None
+        self._cnx = None
+        self._cur = None
 
         #make sure database path exists
-        if not os.path.exists(Database.DATABASE_PATH):
-            self.cleep_filesystem.mkdir(Database.DATABASE_PATH, True)
+        if not os.path.exists(Charts.DATABASE_PATH):
+            self.cleep_filesystem.mkdir(Charts.DATABASE_PATH, True)
 
     def _configure(self):
         """
         Configure module
         """
         #make sure database file exists
-        if not os.path.exists(os.path.join(Database.DATABASE_PATH, Database.DATABASE_NAME)):
+        if not os.path.exists(os.path.join(Charts.DATABASE_PATH, Charts.DATABASE_NAME)):
             self.logger.debug(u'Database file not found')
-            self.__init_database()
+            self._init_database()
 
-        self.logger.debug(u'Connect to database')
-        self.__cnx = sqlite3.connect(os.path.join(Database.DATABASE_PATH, Database.DATABASE_NAME))
-        self.__cur = self.__cnx.cursor()
+        path = os.path.join(Charts.DATABASE_PATH, Charts.DATABASE_NAME)
+        self.logger.debug(u'Connect to database "%s"' % path)
+        self._cnx = sqlite3.connect(path, check_same_thread=Charts.CHECK_SAME_THREAD)
+        self._cur = self._cnx.cursor()
 
     def _stop(self):
         """
         Stop module
         """
-        if self.__cnx:
-            self.__cnx.close()
+        if self._cnx:
+            self._cnx.close()
 
-    def __init_database(self):
+    def _init_database(self):
         """
         Init database
         """
-        path = os.path.join(Database.DATABASE_PATH, Database.DATABASE_NAME)
+        path = os.path.join(Charts.DATABASE_PATH, Charts.DATABASE_NAME)
         self.logger.debug(u'Initialize database "%s"' % path)
 
         #create database file
@@ -122,12 +128,6 @@ class Database(RaspIotModule):
         cnx.commit()
         cnx.close()
 
-    def __check_database(self):
-        """
-        Check database: check if tables exists
-        """
-        pass
-
     def __restore_field_name(self, current_field, fields):
         """
         Restore field name as stored in database
@@ -149,7 +149,7 @@ class Database(RaspIotModule):
             #field name not found
             return current_field
 
-    def save_data(self, uuid, event, values):
+    def _save_data(self, uuid, event, values):
         """
         Save data into database
 
@@ -163,34 +163,42 @@ class Database(RaspIotModule):
         """
         self.logger.debug(u'Set_data uuid=%s event=%s values=%s' % (uuid, event, unicode(values)))
         if uuid is None or len(uuid)==0:
-            raise MissingParameter(u'Uuid parameter is missing')
+            raise MissingParameter(u'Parameter "uuid" is missing')
         if event is None or len(event)==0:
-            raise MissingParameter(u'Event parameter is missing')
+            raise MissingParameter(u'Parameter "event" is missing')
         if values is None:
-            raise MissingParameter(u'Values parameter is missing')
+            raise MissingParameter(u'Parameter "values" is missing')
         if not isinstance(values, list):
-            raise InvalidParameter(u'Values parameter must be a list')
+            raise InvalidParameter(u'Parameter "values" must be a list')
         if len(values)==0:
             raise InvalidParameter(u'No value to save')
         if len(values)>4:
-            raise InvalidParameter(u'Too many values to save. It is limited to 2 values for now.')
+            raise InvalidParameter(u'Too many values to save for event "%s". It is limited to 4 values for now: %s' % (event, values))
+
+        def get_value(value):
+            """
+            Prevent bool value to be stored (replace it with 1 or 0)
+            """
+            if not isinstance(value, bool):
+                return value
+            return 1 if value is True else 0
 
         #save uuid infos at first insert
-        self.__cur.execute(u'SELECT * FROM devices WHERE uuid=?', (uuid,))
-        row = self.__cur.fetchone()
+        self._cur.execute(u'SELECT * FROM devices WHERE uuid=?', (uuid,))
+        row = self._cur.fetchone()
         if row is None:
             #no infos yet, insert new entry for this device
             if len(values)==1:
-                self.__cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1) VALUES(?,?,?,?)', (uuid, event, len(values), values[0][u'field']))
+                self._cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1) VALUES(?,?,?,?)', (uuid, event, len(values), values[0][u'field']))
             elif len(values)==2:
-                self.__cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2) VALUES(?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field']))
+                self._cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2) VALUES(?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field']))
             elif len(values)==3:
-                self.__cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2, value3) VALUES(?,?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field'], values[2][u'field']))
+                self._cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2, value3) VALUES(?,?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field'], values[2][u'field']))
             elif len(values)==4:
-                self.__cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2, value3, value4) VALUES(?,?,?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field'], values[2][u'field'], values[3][u'values']))
+                self._cur.execute(u'INSERT INTO devices(uuid, event, valuescount, value1, value2, value3, value4) VALUES(?,?,?,?,?,?,?)', (uuid, event, len(values), values[0][u'field'], values[1][u'field'], values[2][u'field'], values[3][u'field']))
         else:
             #entry exists, check it
-            infos = dict((self.__cur.description[i][0], value) for i, value in enumerate(row))
+            infos = dict((self._cur.description[i][0], value) for i, value in enumerate(row))
             if infos[u'event']!=event:
                 raise CommandError(u'Device %s cannot store values from event %s' % (uuid, event))
             if infos[u'valuescount']!=len(values):
@@ -198,16 +206,16 @@ class Database(RaspIotModule):
 
         #save values
         if len(values)==1:
-            self.__cur.execute(u'INSERT INTO data1(timestamp, uuid, value1) values(?,?,?)', (int(time.time()), uuid, values[0][u'value']))
+            self._cur.execute(u'INSERT INTO data1(timestamp, uuid, value1) values(?,?,?)', (int(time.time()), uuid, get_value(values[0][u'value'])))
         elif len(values)==2:
-            self.__cur.execute(u'INSERT INTO data2(timestamp, uuid, value1, value2) values(?,?,?,?)', (int(time.time()), uuid, values[0][u'value'], values[1][u'value']))
+            self._cur.execute(u'INSERT INTO data2(timestamp, uuid, value1, value2) values(?,?,?,?)', (int(time.time()), uuid, get_value(values[0][u'value']), get_value(values[1][u'value'])))
         elif len(values)==3:
-            self.__cur.execute(u'INSERT INTO data3(timestamp, uuid, value1, value2, value3) values(?,?,?,?,?)', (int(time.time()), uuid, values[0][u'value'], values[1][u'value'], values[2][u'value']))
+            self._cur.execute(u'INSERT INTO data3(timestamp, uuid, value1, value2, value3) values(?,?,?,?,?)', (int(time.time()), uuid, get_value(values[0][u'value']), get_value(values[1][u'value']), get_value(values[2][u'value'])))
         elif len(values)==4:
-            self.__cur.execute(u'INSERT INTO data4(timestamp, uuid, value1, value2, value3, value4) values(?,?,?,?,?,?)', (int(time.time()), uuid, values[0][u'value'], values[1][u'value'], values[2][u'value'], values[3][u'value']))
+            self._cur.execute(u'INSERT INTO data4(timestamp, uuid, value1, value2, value3, value4) values(?,?,?,?,?,?)', (int(time.time()), uuid, get_value(values[0][u'value']), get_value(values[1][u'value']), get_value(values[2][u'value']), get_value(values[3][u'value'])))
 
         #commit changes
-        self.__cnx.commit()
+        self._cnx.commit()
         
         return True
 
@@ -219,21 +227,23 @@ class Database(RaspIotModule):
             uuid (string): uuid
 
         Returns:
-            dict: list of devices table fields
+            dict: list of devices table fields::
+
                 {
-                    'event': event associated to device (string),
-                    'valuescount': number of values saved for this device (used to get data table) (int),
-                    'value1': value1 field name (string),
-                    'value2': value2 field name (string or None),
-                    'value3': value3 field name (string or None),
-                    'value4': value4 field name (string or None),
+                    event (string): event name associated to device
+                    valuescount (int): number of values saved for this device (used to get data table)
+                    value1 (string): value1 field name
+                    value2 (string): value2 field name. Can be None
+                    value3 (string): value3 field name. Can be None
+                    value4 (string): value4 field name. Can be None
                 }
+
         """
-        self.__cur.execute(u'SELECT event, valuescount, value1, value2, value3, value4 FROM devices WHERE uuid=?', (uuid,))
-        row = self.__cur.fetchone()
+        self._cur.execute(u'SELECT event, valuescount, value1, value2, value3, value4 FROM devices WHERE uuid=?', (uuid,))
+        row = self._cur.fetchone()
         if row is None:
             raise CommandError(u'Device %s not found!' % uuid)
-        return dict((self.__cur.description[i][0], value) for i, value in enumerate(row))
+        return dict((self._cur.description[i][0], value) for i, value in enumerate(row))
 
     def get_data(self, uuid, timestamp_start, timestamp_end, options=None):
         """
@@ -243,21 +253,23 @@ class Database(RaspIotModule):
             uuid (string): device uuid
             timestamp_start (int): start of range
             timestamp_end (int): end of range
-            options (dict): command options
+            options (dict): command options::
+
                 {
-                    'output': <'list','dict'[default]>,
-                    'fields': [<field1>, <field2>, ...],
-                    'sort': <'asc'[default],'desc'>,
-                    'limit': <number>
+                    output (string): output format ('list'|'dict'[default])
+                    fields (list): list of fields to return
+                    sort (string): sort value ('asc'[default]|'desc')
+                    limit (int): limit number
                 }
 
         Returns:
-            dict: data
+            dict: data::
+
                 {
-                    'uuid': <device uuid>,
-                    'event': <event type>,
-                    'names': <list(<data name>,...)>,
-                    'data': <list(list(<data value,...>|list(dict('data name':<data value>,...))))
+                    uuid (string): device uuid
+                    event (string): event name
+                    names (list): list of column names
+                    data (dict): dict of data. Content can be a list or a dict according to "outpu" option
                 }
 
         Raises:
@@ -266,13 +278,13 @@ class Database(RaspIotModule):
         """
         #check parameters
         if uuid is None or len(uuid)==0:
-            raise MissingParameter(u'Uuid parameter is missing')
+            raise MissingParameter(u'Parameter "uuid" is missing')
         if timestamp_start is None:
-            raise MissingParameter(u'Timestamp_start parameter is missing')
+            raise MissingParameter(u'Parameter "timestamp_start" is missing')
         if timestamp_start<0:
             raise InvalidParameter(u'Timestamp_start value must be positive') 
         if timestamp_end is None:
-            raise MissingParameter(u'Timestamp_end parameter is missing')
+            raise MissingParameter(u'Parameter "timestamp_end" is missing')
         if timestamp_end<0:
             raise InvalidParameter(u'Timestamp_end value must be positive') 
 
@@ -282,13 +294,13 @@ class Database(RaspIotModule):
         options_sort = u'asc'
         options_limit = u''
         if options is not None:
-            if options.has_key(u'fields'):
+            if u'fields' in options:
                 options_fields = options[u'fields']
-            if options.has_key(u'output') and options[u'output'] in (u'list', u'dict'):
+            if u'output' in options and options[u'output'] in (u'list', u'dict'):
                 options_output = options[u'output']
-            if options.has_key(u'sort') and options[u'sort'] in (u'asc', u'desc'):
+            if u'sort' in options and options[u'sort'] in (u'asc', u'desc'):
                 options_sort = options[u'sort']
-            if options.has_key(u'limit') and options[u'limit'].isdigit():
+            if u'limit' in options and isinstance(options[u'limit'], int):
                 options_limit = 'LIMIT %d' % options['limit']
         self.logger.debug(u'options: fields=%s output=%s sort=%s limit=%s' % (options_fields, options_output, options_sort, options_limit))
 
@@ -325,21 +337,21 @@ class Database(RaspIotModule):
         if options_output==u'dict':
             #output as dict
             query = u'SELECT timestamp,%s FROM data%d WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp %s %s' % (u','.join(columns), infos[u'valuescount'], options_sort, options_limit)
-            self.logger.debug(u'query=%s' % query)
-            self.__cur.execute(query, (uuid, timestamp_start, timestamp_end))
+            self.logger.debug(u'Select query: %s' % query)
+            self._cur.execute(query, (uuid, timestamp_start, timestamp_end))
             #@see http://stackoverflow.com/a/3287775
-            data = [dict((self.__restore_field_name(self.__cur.description[i][0], infos), value) for i, value in enumerate(row)) for row in self.__cur.fetchall()]
+            data = [dict((self.__restore_field_name(self._cur.description[i][0], infos), value) for i, value in enumerate(row)) for row in self._cur.fetchall()]
 
         else:
             #output as list
             data = {}
             for column in columns:
                 query = u'SELECT timestamp,%s FROM data%d WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp %s %s' % (column, infos[u'valuescount'], options_sort, options_limit)
-                self.logger.debug(u'query=%s' % query)
-                self.__cur.execute(query, (uuid, timestamp_start, timestamp_end))
+                self.logger.debug(u'Select query: %s' % query)
+                self._cur.execute(query, (uuid, timestamp_start, timestamp_end))
                 data[infos[column]] = {
                     u'name': infos[column],
-                    u'values': self.__cur.fetchall()
+                    u'values': self._cur.fetchall()
                 }
 
         return {
@@ -366,9 +378,9 @@ class Database(RaspIotModule):
         """
         #check parameters
         if uuid is None or len(uuid)==0:
-            raise MissingParameter(u'Uuid parameter is missing')
+            raise MissingParameter(u'Parameter "uuid" is missing')
         if timestamp_until is None:
-            raise MissingParameter(u'Timestamp_until parameter is missing')
+            raise MissingParameter(u'Parameter "timestamp_until" is missing')
         if timestamp_until<0:
             raise InvalidParameter(u'Timestamp_until value must be positive') 
         
@@ -389,31 +401,30 @@ class Database(RaspIotModule):
 
         #prepare sql query
         query = u'DELETE FROM %s WHERE uuid=? AND timestamp<?' % tablename
-        self.logger.debug(u'query=%s' % query)
+        self.logger.debug(u'Purge query: %s with uuid=%s, timestamp=%s' % (query, uuid, timestamp_until))
 
         #execute query
-        self.__cur.execute(query, (uuid, timestamp_until))
+        self._cur.execute(query, (uuid, timestamp_until))
+        self._cnx.commit()
 
         return True
 
-    def __delete_device(self, uuid):
+    def _delete_device(self, uuid):
         """
-        Purge device data until specified time
+        Delete device from database
 
         Args:
             uuid (string): device uuid
-            timestamp_until (int): timestamp to delete data before
         
         Returns:
             bool: always True
 
         Raises:
             MissingParameter: if parameter is missing
-            InvalidParameter: if invalid parameter is specified
         """
         #check parameters
         if uuid is None or len(uuid)==0:
-            raise MissingParameter(u'Uuid parameter is missing')
+            raise MissingParameter(u'Parameter "uuid" is missing')
         
         #get device infos
         infos = self.__get_device_infos(uuid)
@@ -430,12 +441,17 @@ class Database(RaspIotModule):
         if infos[u'valuescount']==4:
             tablename = u'data4'
 
-        #prepare sql query
+        #delete device data
         query = u'DELETE FROM %s WHERE uuid=?' % tablename
-        self.logger.debug(u'query=%s' % query)
+        self.logger.debug(u'Data query: %s' % query)
+        self._cur.execute(query, (uuid,))
+        self._cnx.commit()
 
-        #execute query
-        self.__cur.execute(query, (uuid,))
+        #delete device entry
+        query = u'DELETE FROM devices WHERE uuid=?'
+        self.logger.debug('Devices query: %s' % query)
+        self._cur.execute(query, (uuid,))
+        self._cnx.commit()
 
         return True
 
@@ -447,65 +463,50 @@ class Database(RaspIotModule):
             event (MessageRequest): event
         """
         self.logger.debug(u'Event received %s' % event)
-        if event[u'device_id'] is not None:
-            #split event
-            (event_module, event_type, event_action) = event[u'event'].split(u'.')
+        if event[u'device_id'] is None:
+            #no device associated
+            return
 
-            if event_type==u'device' and event_action==u'delete':
-                #delete device data
-                self.__delete_device(event[u'device_id'])
+        #split event
+        (event_module, event_type, event_action) = event[u'event'].split(u'.')
 
-            elif event_type==u'temperature':
-                #save temperature event
-                self.save_data(event[u'device_id'], event_type, [
-                    {u'field':u'celsius', u'value':event[u'params'][u'celsius']},
-                    {u'field':u'fahrenheit', u'value':event[u'params'][u'fahrenheit']}
-                ])
+        #delete device data
+        if event_module=='system' and event_type==u'device' and event_action==u'delete':
+            self._delete_device(event[u'device_id'])
+            return
 
-            elif event_type==u'motion':
-                #save motion event
-                if event_action==u'on':
-                    #trick to make graphable motion data (inject 0 just before setting real value)
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'on', u'value':0}
-                    ])
-                    time.sleep(1.0)
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'on', u'value':1}
-                    ])
-                else:
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'on', u'value':1}
-                    ])
-                    time.sleep(1.0)
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'on', u'value':0}
-                    ])
+        #get event instance
+        event_instance = self.events_broker.get_event_instance(event[u'event'])
+        if not event_instance:
+            self.logger.debug(u'No event instance found for "%s"' % event[u'event'])
+            return
 
-            elif event_type==u'monitoring':
-                #save cpu usage
-                if event_action==u'cpu':
-                    raspiot = float(event[u'params'][u'raspiot'])
-                    system = float(event[u'params'][u'system'])
-                    others = float('{0:.2f}'.format(system - raspiot))
-                    if others<0.0:
-                        others = 0.0
-                    idle = 100.0 - raspiot - others
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'raspiot', u'value':raspiot},
-                        {u'field':u'others', u'value':others},
-                        {u'field':u'idle', u'value':idle}
-                    ])
+        #get and check chart values
+        values = event_instance.get_chart_values(event[u'params'])
+        if values is None:
+            self.logger.debug(u'No chart values for event "%s"' % event[u'event'])
+            return
+        if not isinstance(values, list) or len(values)==0:
+            self.logger.debug(u'Invalid chart values for event "%s": %s' % (event[u'event'], values))
+            return
 
-                #save memory usage
-                if event_action==u'memory':
-                    raspiot = float(event[u'params'][u'raspiot'])
-                    total = float(event[u'params'][u'total'])
-                    available = float(event[u'params'][u'available'])
-                    others = total - available - raspiot
-                    self.save_data(event[u'device_id'], event_type, [
-                        {u'field':u'raspiot', u'value':raspiot},
-                        {u'field':u'others', u'value':others},
-                        {u'field':u'available', u'value':available}
-                    ])
+        if len(values)==1 and isinstance(values[0][u'value'], bool):
+            #handle differently single bool value to make possible chart generation:
+            #we inject opposite value just before current value
+            current_value = values[0][u'value']
+            self._save_data(event[u'device_id'], event_type, [
+                {
+                    u'field': values[0][u'field'],
+                    u'value': 1 if current_value is False else 0
+                }
+            ])
+            time.sleep(1.0)
+            self._save_data(event[u'device_id'], event_type, [
+                {
+                    u'field': values[0][u'field'],
+                    u'value': 1 if current_value is True else 0
+                }
+            ])
+        else:
+            self._save_data(event[u'device_id'], event_type, values)
 
