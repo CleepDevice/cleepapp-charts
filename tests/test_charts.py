@@ -21,7 +21,7 @@ class FakeEvent():
 class TestCharts(unittest.TestCase):
 
     def setUp(self):
-        self.session = session.Session(logging.CRITICAL)
+        self.session = session.TestSession(logging.CRITICAL)
         _charts = Charts
         _charts.DATABASE_PATH = '/tmp/'
         self.db_path = os.path.join(_charts.DATABASE_PATH, _charts.DATABASE_NAME)
