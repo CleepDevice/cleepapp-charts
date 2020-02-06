@@ -36,7 +36,7 @@ var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, to
             $mdDialog.show({
                 controller: function() { return self; },
                 controllerAs: 'chartButtonCtl',
-                templateUrl: 'chartButton/chartDialog.html',
+                templateUrl: 'chartButtonComponent/chartDialog.html',
                 parent: angular.element(document.body),
                 clickOutsideToClose: true,
                 fullscreen: true,
@@ -61,7 +61,7 @@ var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, to
 
     return {
         restrict: 'AE',
-        templateUrl: 'chartButton/chartButton.html',
+        templateUrl: 'chartButtonComponent/chartButton.html',
         replace: true,
         scope: {
             device: '=',
