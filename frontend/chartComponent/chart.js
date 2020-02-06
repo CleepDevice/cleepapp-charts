@@ -8,7 +8,7 @@
  * @param device: device object
  * @param options: chart options. An object with the following format
  *  {
- *    type (bar|line)     : type of chart (optional, default line)
+ *    type (string)       : type of chart (optional, default line) (line|bar|pie)
  *    filters (array)     : list of field names to display (optional, default all fields)
  *    timerange (obj)     : timerange to display at opening (optional, default 1 day until now)
  *                          { 
