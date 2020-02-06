@@ -484,7 +484,7 @@ class Charts(RaspIotModule):
         #get and check chart values
         values = event_instance.get_chart_values(event[u'params'])
         if values is None:
-            self.logger.debug(u'No chart values for event "%s"' % event[u'event'])
+            self.logger.trace(u'No chart values for event "%s"' % event[u'event'])
             return
         if not isinstance(values, list) or len(values)==0:
             self.logger.debug(u'Invalid chart values for event "%s": %s' % (event[u'event'], values))
