@@ -8,24 +8,34 @@
  * @param device: device object
  * @param options: chart options. An object with the following format
  *  {
- *    type (string)       : type of chart (optional, default line) (line|bar|pie)
- *    filters (array)     : list of field names to display (optional, default all fields)
- *    timerange (obj)     : timerange to display at opening (optional, default 1 day until now)
- *                          { 
+ *    type (string)       : Type of chart (optional, default line) (line|bar|pie)
+ *    fields (array)      : List of field names to display (optional, default all fields)
+ *    timerange (obj)     : Timerange to display at opening (optional, default last day until now)
+ *                          {
+ *                              predefined (int): use pre-defined range. Possible values:
+ *                                  - 86400   : last day
+ *                                  - 172800  : last 2 days
+ *                                  - 604800  : last week
+ *                                  - 1209600 : last 2 weeks
+ *                                  - 2678400 : last month
+ *                                  - 7862400 : last quarter
+ *                                  - 15724800: last semester
+ *                                  - 31449600: last year
  *                              start (timestamp): start range timestamp
  *                              end (timestamp)  : end range timestamp
  *                          }
- *    format (callback)   : callback to convert value to specific format (optional, default is raw value) 
+ *    format (callback)   : Callback to convert value to specific format (optional, default is raw value) 
  *                          Format infos available here https://github.com/d3/d3-format
- *    label (string)      : value label,
- *    height (int)        : chart height (optional, default 400px)
- *    color (string)      : color hex code (starting with #). Only used for single data
- *    loadData (callback) : callback that returns data to display (mandatory for pie chart).
+ *    height (int)        : Chart height (optional, default 400px)
+ *    color (string)      : Color hex code (starting with #). Only used for single data
+ *    loadData (callback) : Callback that returns data to display (mandatory for pie chart).
  *                          Callback parameters:
  *                              - start (timestamp): start timestamp
  *                              - end (timestamp)  : end timestamp
  *                          Returns: callback must return a promise
- *    showControls (bool) : display or not controls (time range...) (optional, default is true)
+ *    showControls (bool) : Display or not controls (time range...) (optional, default is true)
+ *    label (string)      : Chart vertical label (generally the unit),
+ *    title (string)      : Top chart title
  *  }
  */
 var chartDirective = function($q, $rootScope, chartsService, toast) {
@@ -389,21 +399,26 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         self.init = function()
         {
             //force user timestamp if provided
-            if( !angular.isUndefined(self.options.timestamp) && self.options.timestamp!==null )
-            {
-                self.timestampStart = self.options.timestamp.start;
-                self.timestampEnd = self.options.timestamp.end;
-            }
-            else
-            {
+            if( !angular.isUndefined(self.options.timerange) && self.options.timerange!==null ) {
+                if( !angular.isUndefined(self.options.timerange.predefined) && self.options.timerange.predefined!==null ) {
+                    // use predefined timerange
+                    self.rangeSelector = self.options.timerange.predefined;
+                    self.timestampEnd = Number(moment().format('X'));
+                    self.timestampStart = self.timestampEnd - self.rangeSelector;
+                } else {
+                    // use custom timerange
+                    self.rangeSelector = 0;
+                    self.timestampStart = self.options.timerange.start;
+                    self.timestampEnd = self.options.timerange.end;
+                }
+            } else {
                 //set default timestamp range
                 self.timestampEnd = Number(moment().format('X'));
                 self.timestampStart = self.timestampEnd - self.rangeSelector;
             }
 
             //show controls
-            if( !angular.isUndefined(self.options.showControls) )
-            {
+            if( !angular.isUndefined(self.options.showControls) ) {
                 self.showControls = self.options.showControls;
             }
 
