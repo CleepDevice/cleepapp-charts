@@ -105,7 +105,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 zoom: {
                     enabled: true,
                     scaleExtent: [1,10],
-                    useFixedDomain: true,
+                    useFixedDomain: false,
                     useNiceScale: false,
                     horizontalOff: false,
                     verticalOff: true,
@@ -233,17 +233,17 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 {
                     if( self.options.type=='line' )
                     {
-                        self.chartRequestOptions.fields.output = 'list';
+                        self.chartRequestOptions.output = 'list';
                         self.chartOptions = self.chartOptionsByType[self.options.type];
                     }
                     else if( self.options.type=='bar' )
                     {
-                        self.chartRequestOptions.fields.output = 'list';
+                        self.chartRequestOptions.output = 'list';
                         self.chartOptions = self.chartOptionsByType[self.options.type];
                     }
                     else if( self.options.type=='pie' )
                     {
-                        self.chartRequestOptions.fields.output = 'dict';
+                        self.chartRequestOptions.output = 'dict';
                         self.chartOptions = self.chartOptionsByType[self.options.type];
                     }
                     else
@@ -319,7 +319,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 for( name in data )
                 {
                     chartData.push({
-                        'key': self.device[name].name,
+                        'key': name,
                         'bar': true,
                         'values': data[name].values
                     });
