@@ -269,7 +269,7 @@ class Charts(RaspIotModule):
                     uuid (string): device uuid
                     event (string): event name
                     names (list): list of column names
-                    data (dict): dict of data. Content can be a list or a dict according to "outpu" option
+                    data (list|dict): content can be a list or a dict according to options.output value
                 }
 
         Raises:
