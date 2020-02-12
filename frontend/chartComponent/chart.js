@@ -27,12 +27,13 @@
  *    format (callback)   : Callback to convert value to specific format (optional, default is raw value) 
  *                          Format infos available here https://github.com/d3/d3-format
  *    height (int)        : Chart height (optional, default 400px)
- *    color (string)      : Color hex code (starting with #). Only used for single data
+ *    color (string|array): Color hex code (starting with #). Can be an array of colors for series charts.
  *    loadData (callback) : Callback that returns data to display (mandatory for pie chart).
  *                          Callback parameters:
  *                              - start (timestamp): start timestamp
  *                              - end (timestamp)  : end timestamp
- *                          Returns: callback must return a promise
+ *                          Returns: callback must return a promise. Output value must follow a specific format
+ *                          according to list or dict format.
  *    showControls (bool) : Display or not controls (time range...) (optional, default is true)
  *    label (string)      : Chart vertical label (generally the unit),
  *    title (string)      : Top chart title
@@ -67,6 +68,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         ]);
 
         //bar chart default options
+        //http://krispo.github.io/angular-nvd3/#/historicalBarChart
         self.historicalBarChartOptions = {
             chart: {
                 type: "historicalBarChart",
@@ -77,8 +79,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                     bottom: 65,
                     left: 50
                 },
-                x: function(d){return d[0];},
-                y: function(d){return d[1];},
+                x: function(d){ return d[0]; },
+                y: function(d){ return d[1]; },
                 showValues: true,
                 duration: 500,
                 xAxis: {
@@ -118,7 +120,53 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             }
         };
 
+        //multibar chart default options
+        //http://krispo.github.io/angular-nvd3/#/multiBarChart
+        self.multiBarChartOptions = {
+            chart: {
+                type: 'multiBarChart',
+                height: 400,
+                margin : {
+                	top: 20,
+                    right: 20,
+                    bottom: 45,
+                    left: 45
+                },
+                clipEdge: true,
+                duration: 500,
+                stacked: true,
+                xAxis: {
+                    // axisLabel: 'Time (ms)',
+                    showMaxMin: false,
+                    tickFormat: function(d) {
+                        return self.customTimeFormat(moment(d,'X').toDate());
+                    }
+                },
+                yAxis: {
+                    axisLabel: '',
+                    axisLabelDistance: -15,
+                    tickFormat: function(v) {
+                        return self.defaultFormat(v);
+                    }
+                },
+                zoom: {
+                    enabled: true,
+                    scaleExtent: [1,10],
+                    useFixedDomain: false,
+                    useNiceScale: false,
+                    horizontalOff: false,
+                    verticalOff: true,
+                    unzoomEventType: "dblclick.zoom"
+                }
+            },
+            title: {
+                enable: false,
+                text: '',
+            }
+        };
+
         //line chart default options
+        //http://krispo.github.io/angular-nvd3/#/stackedAreaChart
         self.stackedAreaChartOptions = {
             chart: {
                 type: 'stackedAreaChart',
@@ -167,6 +215,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         };
 
         //pie chart default options
+        //http://krispo.github.io/angular-nvd3/#/pieChart
         self.pieChartOptions = {
             chart: {
                 type: "pieChart",
@@ -207,7 +256,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         self.chartOptionsByType = {
             'line': self.stackedAreaChartOptions,
             'bar': self.historicalBarChartOptions,
-            'pie': self.pieChartOptions
+            'pie': self.pieChartOptions,
+            'multibar': self.multiBarChartOptions,
         };
 
         //chart data and options
@@ -226,119 +276,95 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          */
         self.__prepareChartOptions = function() {
             //set chart request options and chart options
-            if( !angular.isUndefined(self.options) && self.options!==null )
-            {
+            if( !angular.isUndefined(self.options) && self.options!==null ) {
                 //chart type
-                if( !angular.isUndefined(self.options.type) && self.options.type!==null )
-                {
-                    if( self.options.type=='line' )
-                    {
-                        self.chartRequestOptions.output = 'list';
-                        self.chartOptions = self.chartOptionsByType[self.options.type];
-                    }
-                    else if( self.options.type=='bar' )
-                    {
-                        self.chartRequestOptions.output = 'list';
-                        self.chartOptions = self.chartOptionsByType[self.options.type];
-                    }
-                    else if( self.options.type=='pie' )
-                    {
-                        self.chartRequestOptions.output = 'dict';
-                        self.chartOptions = self.chartOptionsByType[self.options.type];
-                    }
-                    else
-                    {
-                        //invalid type specified
-                        toast.error('Invalid chart type specified');
+                if( !angular.isUndefined(self.options.type) && self.options.type!==null ) {
+                    self.chartOptions = self.chartOptionsByType[self.options.type];
+                    switch(self.options.type) {
+                        case 'line':
+                            self.chartRequestOptions.output = 'list';
+                            break;
+                        case 'bar':
+                            self.chartRequestOptions.output = 'list';
+                            break;
+                        case 'multibar':
+                            self.chartRequestOptions.output = 'dict';
+                            break;
+                        case 'pie':
+                            self.chartRequestOptions.output = 'dict';
+                            break;
+                        default:
+                            //invalid type specified
+                            toast.error('Invalid chart type specified');
+                            return;
                     }
                 }
 
                 //force chart height
-                if( !angular.isUndefined(self.options.height) && self.options.height!==null )
-                {
+                if( !angular.isUndefined(self.options.height) && self.options.height!==null ) {
                     self.chartOptions.chart.height = self.options.height;
                     self.chartHeight = '' + self.options.height + 'px';
                 }
 
                 //fields filtering
-                if( !angular.isUndefined(self.options.fields) && self.options.fields!==null )
-                {
+                if( !angular.isUndefined(self.options.fields) && self.options.fields!==null ) {
                     self.chartRequestOptions.fields = self.options.fields;
                 }
 
                 //force values format
-                if( !angular.isUndefined(self.options.format) && self.options.format!==null )
-                {
+                if( !angular.isUndefined(self.options.format) && self.options.format!==null ) {
                     self.defaultFormat = self.options.format;
                 }
 
                 //force Y label
-                if( !angular.isUndefined(self.options.label) && self.options.label!==null )
-                {
+                if( !angular.isUndefined(self.options.label) && self.options.label!==null ) {
                     self.chartOptions.chart.yAxis.axisLabel = self.options.label;
                     self.chartOptions.chart.margin.left = 60;
                 }
 
                 //force title
-                if( !angular.isUndefined(self.options.title) && self.options.title!==null )
-                {
+                if( !angular.isUndefined(self.options.title) && self.options.title!==null ) {
                     self.chartOptions.title.enable = true;
                     self.chartOptions.title.text = self.options.title;
                 }
 
                 //force color
-                if( !angular.isUndefined(self.options.color) && self.options.color!==null )
-                {
-                    self.chartOptions.chart.color = [self.options.color];
+                if( !angular.isUndefined(self.options.color) && self.options.color!==null ) {
+                    if( angular.isArray(self.options.color) ) {
+                        self.chartOptions.chart.color = self.options.color;
+                    } else {
+                        self.chartOptions.chart.color = [self.options.color];
+                    }
                 }
             }
         };
 
         /**
          * Finalize chart options according to directive options
-         * @param count: number of items in chart. Used to disable/enable legend
+         * @param data: data to parse for charting
          */
         self.__finalizeChartOptions = function(data) {
             var chartData = [];
             var count = 0;
             var name = null;
-
-            if( self.options.type=='line' )
-            {
-                for( name in data )
-                {
-                    chartData.push({
-                        'key': data[name].name,
-                        'values': data[name].values
-                    });
-                    count++;
-                }
-            }
-            else if( self.options.type=='bar' )
-            {
-                for( name in data )
-                {
-                    chartData.push({
-                        'key': name,
-                        'bar': true,
-                        'values': data[name].values
-                    });
-                    count++;
-                }
-            }
-            else if( self.options.type=='pie' )
-            {
-                for( name in data )
-                {
-                    chartData.push({
-                        'key': data[name].name,
-                        'value': data[name].value
-                    });
-                }
+            
+            switch(self.options.type) {
+                case 'line':
+                    chartData = self.__computeLineChartValues(data);
+                    break;
+                case 'bar':
+                    chartData = self.__computeBarChartValues(data);
+                    break;
+                case 'multibar':
+                    chartData = self.__computeMultiBarChartValues(data);
+                    break;
+                case 'pie':
+                    chartData = self.__computePieChartValues(data);
+                    break;
             }
 
-            //force legend displaying
-            if( count>1 && self.options.type!=='pie' )
+            //display legend only if there are some values (except for pie chart)
+            if( chartData.length>1 && self.options.type!=='pie' )
             {
                 self.chartOptions.chart.showLegend = true;
                 self.chartOptions.chart.margin.top = 30;
@@ -348,7 +374,127 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             self.chartData = chartData;
             self.loading = false;
         };
-    
+        
+        /**
+         * Compute line chart values
+         */
+        self.__computeLineChartValues = function(data) {
+            // Output format
+            //  {
+            //    key: "Serie1",
+            //    values: [[timestamp, value], ...]
+            //  }
+            var values = [];
+            
+            for( var name in data ) {
+                values.push({
+                    'key': data[name].name,
+                    'values': data[name].values
+                });
+            }
+            
+            return values;
+        };
+        
+        /**
+         * Compute bar chart values
+         */
+        self.__computeBarChartValues = function(data) {
+            // Output format
+            //  {
+            //    key: "Serie1",
+            //    bar: true,
+            //    values: [[timestamp, value], ...]
+            //  }
+            var values = [];
+            
+            for( var name in data ) {
+                values.push({
+                    'key': name,
+                    'bar': true,
+                    'values': data[name].values
+                });
+            }
+            
+            return values;
+        };
+
+        /**
+         * Compute multibar chart values
+         */
+        self.__computeMultiBarChartValues = function(data) {
+            // Output format:
+            //  [
+            //    {                                 {                               {
+            //      key: "Stream0",                   key: "Stream1",                 key: "Stream2",
+            //      values: [                         values: [                       values: [
+            //        {                                 {                               {
+            //          x: 0                              x: 0                            x: 0
+            //          y: 1.0902505986887638             y: 0.9494608038493945           y: 0.9863569449592955
+            //          y0: 0                             y0: 1.0902505986887638          y0: 2.0397114025381584
+            //          series: 0                         series: 1                       series: 2
+            //          key: "Stream0"                    key: "Stream1"                  key: "Stream2"
+            //          size: 1.0902505986887638          size: 0.9494608038493945        size: 0.9863569449592955
+            //          y1: 1.0902505986887638            y1: 2.0397114025381584          y1: 3.026068347497454
+            //        },                                },                              },
+            //        ...                               ...                             ...
+            //      ]                                 ]                               ]
+            //    },                                },                              },
+            //  ]
+            var values = [];
+
+            var series = [];
+            for( var name in data[0] ) {
+                if( name!=='ts' ) {
+                    series.push(name);
+                    values.push({
+                        key: name,
+                        values: [],
+                    });
+                }
+            }
+
+            for( var value of data ) {
+                var index = 0;
+                for( var serie of series ) {
+                    var lastValue = {
+                        x: value.ts,
+                        y: value[serie],
+                        y0: index===0 ? 0 : lastValue.y + lastValue.y0,
+                        series: index,
+                        key: serie,
+                        size: value[serie],
+                        y1: value[serie] + (index===0 ? 0 : lastValue.y + lastValue.y0),
+                    };
+                    values[index].values.push(lastValue);
+                    index++;
+                }
+            }
+
+            return values;
+        };
+        
+        /**
+         * Compute pie chart values
+         */
+        self.__computePieChartValues = function(data) {
+            // Output format:
+            //  [
+            //    { key: "stream1", value: 0 },
+            //    ...
+            //  ]
+            var values = [];
+            
+            for( name in data ) {
+                values.push({
+                    'key': data[name].name,
+                    'value': data[name].value
+                });
+            }
+            
+            return values;
+        }
+        
         /**
          * Load chart data
          */
@@ -366,8 +512,10 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 self.options.loadData(self.timestampStart, self.timestampEnd)
                     .then(function(resp) {
                         self.__finalizeChartOptions(resp);
-                    }, function(err) {
-                        //toast.error(err);
+                    })
+                    .catch(function(error) {
+                        //unable to get data, stop loading
+                        self.loading = false;
                     });
             }
             else
@@ -376,6 +524,10 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 chartsService.getDeviceData(self.device.uuid, self.timestampStart, self.timestampEnd, self.chartRequestOptions)
                     .then(function(resp) {
                         self.__finalizeChartOptions(resp.data.data);
+                    });
+                    .catch(function(error) {
+                        //unable to get data, stop loading
+                        self.loading = false;
                     });
             }
         };
@@ -433,8 +585,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             //workaround to remove tooltips when dialog is closed: dialog is closed before 
             //nvd3 has time to remove tooltips elements
             var tooltips = $("div[id^='nvtooltip']");
-            for( var i=0; i<tooltips.length; i++ )
-            {
+            for( var i=0; i<tooltips.length; i++ ) {
                 tooltips[i].remove();
             }
         });
@@ -464,4 +615,5 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
     
 var RaspIot = angular.module('RaspIot');
 RaspIot.directive('chart', ['$q', '$rootScope', 'chartsService', 'toastService', chartDirective]);
+
 
