@@ -524,7 +524,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 chartsService.getDeviceData(self.device.uuid, self.timestampStart, self.timestampEnd, self.chartRequestOptions)
                     .then(function(resp) {
                         self.__finalizeChartOptions(resp.data.data);
-                    });
+                    })
                     .catch(function(error) {
                         //unable to get data, stop loading
                         self.loading = false;
