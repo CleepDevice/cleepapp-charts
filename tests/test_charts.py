@@ -3,7 +3,7 @@ import logging
 import sys
 sys.path.append('../')
 from backend.charts import Charts
-from raspiot.utils import InvalidParameter, MissingParameter, CommandError, Unauthorized
+from raspiot.exception import InvalidParameter, MissingParameter, CommandError, Unauthorized
 from raspiot.libs.tests import session
 import os
 import sqlite3
@@ -21,7 +21,9 @@ class FakeEvent():
 class TestCharts(unittest.TestCase):
 
     def setUp(self):
-        self.session = session.TestSession(logging.CRITICAL)
+        logging.basicConfig(level=logging.FATAL, format=u'%(asctime)s %(name)s:%(lineno)d %(levelname)s : %(message)s')
+        self.session = session.TestSession()
+
         _charts = Charts
         _charts.DATABASE_PATH = '/tmp/'
         self.db_path = os.path.join(_charts.DATABASE_PATH, _charts.DATABASE_NAME)

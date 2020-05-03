@@ -4,8 +4,8 @@
 import os
 import sqlite3
 import logging
-from raspiot.raspiot import RaspIotModule
-from raspiot.utils import CommandError, MissingParameter, InvalidParameter
+from raspiot.core import RaspIotModule
+from raspiot.exception import CommandError, MissingParameter, InvalidParameter
 import time
 import threading
 
@@ -37,6 +37,7 @@ class Charts(RaspIotModule):
     DATABASE_NAME = u'charts.db'
     # for tests only, to avoid exception during session closing
     CHECK_SAME_THREAD = True
+    MAX_DATA_SIZE = 20000
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -245,6 +246,28 @@ class Charts(RaspIotModule):
             raise CommandError(u'Device %s not found!' % uuid)
         return dict((self._cur.description[i][0], value) for i, value in enumerate(row))
 
+    def _average_data(self, data, column_size):
+        """
+        Average data
+
+        Args:
+            data (list): list of values
+            column_size (int): number of columns
+        """
+        def grouper(data, size, fill_value=None):
+            """ Group data by lot of size """
+            args = [iter(data)] * size
+            return list(itertools.izip_longest(*args, fillvalue=fill_value))
+
+        # compute reduce factor according to variable memory size
+        factor = int(round(sys.getsizeof(data) / self.MAX_DATA_SIZE))
+        factor = 1 if factor <= 0 else factor
+
+        # group and average data
+        args = [iter(data)] * factor
+        # cast to int ? return [numpy.nanmean(v, axis=0).astype(int).tolist() for v in ...
+        return [numpy.nanmean(v, axis=0).tolist() for v in list(itertools.izip_longest(*args, fillvalue=[numpy.nan] * column_size))]
+
     def get_data(self, uuid, timestamp_start, timestamp_end, options=None):
         """
         Return data from data table
@@ -260,6 +283,7 @@ class Charts(RaspIotModule):
                     fields (list): list of fields to return
                     sort (string): sort value ('asc'[default]|'desc')
                     limit (int): limit number
+                    average (bool): return average data instead of all ones (default True). Can't work if data other than numbers are stored.
                 }
 
         Returns:
@@ -293,6 +317,7 @@ class Charts(RaspIotModule):
         options_output = u'dict'
         options_sort = u'asc'
         options_limit = u''
+        options_average = True
         if options is not None:
             if u'fields' in options:
                 options_fields = options[u'fields']
@@ -302,11 +327,14 @@ class Charts(RaspIotModule):
                 options_sort = options[u'sort']
             if u'limit' in options and isinstance(options[u'limit'], int):
                 options_limit = 'LIMIT %d' % options['limit']
-        self.logger.debug(u'options: fields=%s output=%s sort=%s limit=%s' % (options_fields, options_output, options_sort, options_limit))
+            if u'average' in options and isinstance(options[u'average'], bool):
+                options_average = options[u'average']
+        self.logger.trace(u'options: fields=%s output=%s sort=%s limit=%s average=%s' %
+            (options_fields, options_output, options_sort, options_limit, options_average))
 
         # get device infos
         infos = self.__get_device_infos(uuid)
-        self.logger.debug(u'infos=%s' % infos)
+        self.logger.trace(u'infos=%s' % infos)
 
         # prepare query options
         columns = []
@@ -358,7 +386,7 @@ class Charts(RaspIotModule):
             u'uuid': uuid,
             u'event': infos[u'event'],
             u'names': names,
-            u'data': data
+            u'data': self._average_data(data, len(columns)) if options_average else data, 
         }
 
     def purge_data(self, uuid, timestamp_until):
