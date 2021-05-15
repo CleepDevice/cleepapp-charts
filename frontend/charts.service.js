@@ -2,7 +2,10 @@
  * Charts service
  * Handle graph displaying
  */
-var chartsService = function($q, $rootScope, rpcService) {
+angular
+.module('Cleep')
+.service('chartsService', ['rpcService',
+function(rpcService) {
     var self = this;
     
     /**
@@ -12,8 +15,5 @@ var chartsService = function($q, $rootScope, rpcService) {
         return rpcService.sendCommand('get_data', 'charts', {'uuid':uuid, 'timestamp_start':timestampStart, 'timestamp_end':timestampEnd, 'options':options});
     };
 
-};
+}]);
     
-var RaspIot = angular.module('RaspIot');
-RaspIot.service('chartsService', ['$q', '$rootScope', 'rpcService', chartsService]);
-

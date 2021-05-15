@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.1 - 2021-05-15
+
+* Frontend: fix issue in angular files
+
 ## v1.1.0 - 2021-05-13
 
 * Backend: migrate to python3

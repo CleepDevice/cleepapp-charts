@@ -15,7 +15,10 @@
  *      }
  *  }
  */
-var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, toast) {
+angular
+.module('Cleep')
+.directive('chartButton', ['$q', '$rootScope', 'chartsService', '$mdDialog', 'toastService',
+function($q, $rootScope, chartsService, $mdDialog, toast) {
 
     var chartButtonController = ['$scope', function($scope) {
         var self = this;
@@ -40,7 +43,7 @@ var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, to
                 parent: angular.element(document.body),
                 clickOutsideToClose: true,
                 fullscreen: true,
-                escapeToClose: false //disable esc key to avoid tooltip issue
+                escapeToClose: false // disable esc key to avoid tooltip issue
             });
         };
     
@@ -49,12 +52,10 @@ var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, to
     var chartButtonLink = function(scope, element, attrs, controller) {
         controller.device = scope.device;
         controller.chartOptions = scope.chartOptions;
-        if( !angular.isUndefined(scope.buttonLabel) )
-        {
+        if( !angular.isUndefined(scope.buttonLabel) ) {
             controller.buttonLabel = scope.buttonLabel;
         }
-        if( !angular.isUndefined(scope.buttonClass) )
-        {
+        if( !angular.isUndefined(scope.buttonClass) ) {
             controller.buttonClass = scope.buttonClass;
         }
     };
@@ -74,8 +75,5 @@ var chartButtonDirective = function($q, $rootScope, chartsService, $mdDialog, to
         link: chartButtonLink
     };
 
-};
-    
-var RaspIot = angular.module('RaspIot');
-RaspIot.directive('chartButton', ['$q', '$rootScope', 'chartsService', '$mdDialog', 'toastService', chartButtonDirective]);
+}]);
 

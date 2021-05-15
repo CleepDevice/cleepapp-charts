@@ -39,7 +39,10 @@
  *    title (string)      : Top chart title
  *  }
  */
-var chartDirective = function($q, $rootScope, chartsService, toast) {
+angular
+.module('Cleep')
+.directive('chart', ['chartsService', 'toastService',
+function(chartsService, toast) {
 
     var chartController = ['$scope', function($scope) {
         var self = this;
@@ -54,7 +57,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         self.timestampEnd = 0;
         self.showControls = true;
 
-        //dynamic time format according to zoom
+        // dynamic time format according to zoom
         /*self.customTimeFormat = d3.time.format.multi([
             ["%H:%M", function(d) { return d.getMinutes(); }], 
             ["%H", function(d) { return d.getHours(); }], 
@@ -67,8 +70,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             ["%m/%d/%y %H:%M", function(d) { return true; }], 
         ]);
 
-        //bar chart default options
-        //http://krispo.github.io/angular-nvd3/#/historicalBarChart
+        // bar chart default options
+        // http://krispo.github.io/angular-nvd3/#/historicalBarChart
         self.historicalBarChartOptions = {
             chart: {
                 type: "historicalBarChart",
@@ -84,8 +87,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                 showValues: true,
                 duration: 500,
                 xAxis: {
-                    //axisLabel: "X Axis",
-                    //rotateLabels: 30,
+                    // axisLabel: "X Axis",
+                    // rotateLabels: 30,
                     showMaxMin: false,
                     tickFormat: function(d) {
                         return self.customTimeFormat(moment(d,'X').toDate());
@@ -120,8 +123,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             }
         };
 
-        //multibar chart default options
-        //http://krispo.github.io/angular-nvd3/#/multiBarChart
+        // multibar chart default options
+        // http://krispo.github.io/angular-nvd3/#/multiBarChart
         self.multiBarChartOptions = {
             chart: {
                 type: 'multiBarChart',
@@ -165,8 +168,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             }
         };
 
-        //line chart default options
-        //http://krispo.github.io/angular-nvd3/#/stackedAreaChart
+        // line chart default options
+        // http://krispo.github.io/angular-nvd3/#/stackedAreaChart
         self.stackedAreaChartOptions = {
             chart: {
                 type: 'stackedAreaChart',
@@ -214,8 +217,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             }
         };
 
-        //pie chart default options
-        //http://krispo.github.io/angular-nvd3/#/pieChart
+        // pie chart default options
+        // http://krispo.github.io/angular-nvd3/#/pieChart
         self.pieChartOptions = {
             chart: {
                 type: "pieChart",
@@ -247,12 +250,12 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             }
         };
 
-        //default value format callback
+        // default value format callback
         self.defaultFormat = function(v) {
             return v;
         };
 
-        //chart types<=>options mapping
+        // chart types<=>options mapping
         self.chartOptionsByType = {
             'line': self.stackedAreaChartOptions,
             'bar': self.historicalBarChartOptions,
@@ -260,11 +263,11 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
             'multibar': self.multiBarChartOptions,
         };
 
-        //chart data and options
+        // chart data and options
         self.chartData = [];
         self.chartOptions = {};
 
-        //data for chart values request
+        // data for chart values request
         self.chartRequestOptions = {
             output: 'list',
             fields: [],
@@ -275,9 +278,9 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          * Prepare chart options according to directive options
          */
         self.__prepareChartOptions = function() {
-            //set chart request options and chart options
+            // set chart request options and chart options
             if( !angular.isUndefined(self.options) && self.options!==null ) {
-                //chart type
+                // chart type
                 if( !angular.isUndefined(self.options.type) && self.options.type!==null ) {
                     self.chartOptions = self.chartOptionsByType[self.options.type];
                     switch(self.options.type) {
@@ -294,41 +297,41 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                             self.chartRequestOptions.output = 'dict';
                             break;
                         default:
-                            //invalid type specified
+                            // invalid type specified
                             toast.error('Invalid chart type specified');
                             return;
                     }
                 }
 
-                //force chart height
+                // force chart height
                 if( !angular.isUndefined(self.options.height) && self.options.height!==null ) {
                     self.chartOptions.chart.height = self.options.height;
                     self.chartHeight = '' + self.options.height + 'px';
                 }
 
-                //fields filtering
+                // fields filtering
                 if( !angular.isUndefined(self.options.fields) && self.options.fields!==null ) {
                     self.chartRequestOptions.fields = self.options.fields;
                 }
 
-                //force values format
+                // force values format
                 if( !angular.isUndefined(self.options.format) && self.options.format!==null ) {
                     self.defaultFormat = self.options.format;
                 }
 
-                //force Y label
+                // force Y label
                 if( !angular.isUndefined(self.options.label) && self.options.label!==null ) {
                     self.chartOptions.chart.yAxis.axisLabel = self.options.label;
                     self.chartOptions.chart.margin.left = 60;
                 }
 
-                //force title
+                // force title
                 if( !angular.isUndefined(self.options.title) && self.options.title!==null ) {
                     self.chartOptions.title.enable = true;
                     self.chartOptions.title.text = self.options.title;
                 }
 
-                //force color
+                // force color
                 if( !angular.isUndefined(self.options.color) && self.options.color!==null ) {
                     if( angular.isArray(self.options.color) ) {
                         self.chartOptions.chart.color = self.options.color;
@@ -363,14 +366,14 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                     break;
             }
 
-            //display legend only if there are some values (except for pie chart)
+            // display legend only if there are some values (except for pie chart)
             if( chartData.length>1 && self.options.type!=='pie' )
             {
                 self.chartOptions.chart.showLegend = true;
                 self.chartOptions.chart.margin.top = 30;
             }   
 
-            //set chart data and loading flag
+            // set chart data and loading flag
             self.chartData = chartData;
             self.loading = false;
         };
@@ -499,34 +502,34 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          * Load chart data
          */
         self.loadChartData = function(scope, el) {
-            //set loading flag
+            // set loading flag
             self.loading = true;
 
-            //prepare chart options
+            // prepare chart options
             self.__prepareChartOptions();
 
-            //load chart data
+            // load chart data
             if( !angular.isUndefined(self.options.loadData) && self.options.loadData!==null )
             {
-                //load user data
+                // load user data
                 self.options.loadData(self.timestampStart, self.timestampEnd)
                     .then(function(resp) {
                         self.__finalizeChartOptions(resp);
                     })
                     .catch(function(error) {
-                        //unable to get data, stop loading
+                        // unable to get data, stop loading
                         self.loading = false;
                     });
             }
             else
             {
-                //load device data
+                // load device data
                 chartsService.getDeviceData(self.device.uuid, self.timestampStart, self.timestampEnd, self.chartRequestOptions)
                     .then(function(resp) {
                         self.__finalizeChartOptions(resp.data.data);
                     })
                     .catch(function(error) {
-                        //unable to get data, stop loading
+                        // unable to get data, stop loading
                         self.loading = false;
                     });
             }
@@ -537,11 +540,11 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          */
         self.changeRange = function()
         {
-            //compute new timestamp range
+            // compute new timestamp range
             self.timestampEnd = Number(moment().format('X'));
             self.timestampStart = self.timestampEnd - self.rangeSelector;
 
-            //load new chart data
+            // load new chart data
             self.loadChartData();
         };
 
@@ -550,7 +553,7 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          */
         self.init = function()
         {
-            //force user timestamp if provided
+            // force user timestamp if provided
             if( !angular.isUndefined(self.options.timerange) && self.options.timerange!==null ) {
                 if( !angular.isUndefined(self.options.timerange.predefined) && self.options.timerange.predefined!==null ) {
                     // use predefined timerange
@@ -564,17 +567,17 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
                     self.timestampEnd = self.options.timerange.end;
                 }
             } else {
-                //set default timestamp range
+                // set default timestamp range
                 self.timestampEnd = Number(moment().format('X'));
                 self.timestampStart = self.timestampEnd - self.rangeSelector;
             }
 
-            //show controls
+            // show controls
             if( !angular.isUndefined(self.options.showControls) ) {
                 self.showControls = self.options.showControls;
             }
 
-            //load chart data
+            // load chart data
             self.loadChartData();
         };
 
@@ -582,8 +585,8 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
          * Destroy directive
          */
         $scope.$on('$destroy', function() {
-            //workaround to remove tooltips when dialog is closed: dialog is closed before 
-            //nvd3 has time to remove tooltips elements
+            // workaround to remove tooltips when dialog is closed: dialog is closed before 
+            // nvd3 has time to remove tooltips elements
             var tooltips = $("div[id^='nvtooltip']");
             for( var i=0; i<tooltips.length; i++ ) {
                 tooltips[i].remove();
@@ -611,9 +614,5 @@ var chartDirective = function($q, $rootScope, chartsService, toast) {
         link: chartLink
     };
 
-};
-    
-var RaspIot = angular.module('RaspIot');
-RaspIot.directive('chart', ['$q', '$rootScope', 'chartsService', 'toastService', chartDirective]);
-
+}]);
 

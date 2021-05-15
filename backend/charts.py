@@ -18,7 +18,7 @@ class Charts(CleepModule):
     Also unlock sensors and system charts
     """
     MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '1.1.0'
+    MODULE_VERSION = '1.1.1'
     MODULE_DEPS = []
     MODULE_DESCRIPTION = 'Follow easily your sensors values graphically.'
     MODULE_LONGDESCRIPTION = ('Charts application automatically generates charts according to your connected sensors values.<br>'
