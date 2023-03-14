@@ -20,7 +20,7 @@ class Charts(CleepModule):
     """
 
     MODULE_AUTHOR = "Cleep"
-    MODULE_VERSION = "1.1.2"
+    MODULE_VERSION = "1.1.3"
     MODULE_DEPS = []
     MODULE_DESCRIPTION = "Follow easily your sensors values graphically."
     MODULE_LONGDESCRIPTION = (
@@ -29,10 +29,10 @@ class Charts(CleepModule):
     )
     MODULE_CATEGORY = "APPLICATION"
     MODULE_TAGS = ["sensors", "graphs", "charts", "database"]
-    MODULE_URLINFO = "https://github.com/tangb/cleepmod-charts"
-    MODULE_URLHELP = "https://github.com/tangb/cleepmod-charts/wiki"
+    MODULE_URLINFO = "https://github.com/CleepDevice/cleepmod-charts"
+    MODULE_URLHELP = "https://github.com/CleepDevice/cleepmod-charts/wiki"
     MODULE_URLSITE = None
-    MODULE_URLBUGS = "https://github.com/tangb/cleepmod-charts/issues"
+    MODULE_URLBUGS = "https://github.com/CleepDevice/cleepmod-charts/issues"
 
     MODULE_CONFIG_FILE = "charts.conf"
 
@@ -71,7 +71,7 @@ class Charts(CleepModule):
             self.logger.debug("Database file not found")
             self._init_database()
 
-        self.logger.debug('Connect to database "%s"' % database_path)
+        self.logger.debug('Connect to database "%s"', database_path)
         self._cnx = sqlite3.connect(
             database_path, check_same_thread=Charts.CHECK_SAME_THREAD
         )
@@ -89,7 +89,7 @@ class Charts(CleepModule):
         Init database
         """
         path = os.path.join(Charts.DATABASE_PATH, Charts.DATABASE_NAME)
-        self.logger.debug('Initialize database "%s"' % path)
+        self.logger.debug('Initialize database "%s"', path)
 
         # create database file
         cnx = sqlite3.connect(path)
@@ -210,8 +210,10 @@ class Charts(CleepModule):
             InvalidParameter: if invalid parameter is specified
         """
         self.logger.debug(
-            "Set_data device_uuid=%s event=%s values=%s"
-            % (device_uuid, event, str(values))
+            "Set_data device_uuid=%s event=%s values=%s",
+            device_uuid,
+            event,
+            str(values),
         )
         if device_uuid is None or len(device_uuid) == 0:
             raise MissingParameter('Parameter "device_uuid" is missing')
@@ -225,8 +227,7 @@ class Charts(CleepModule):
             raise InvalidParameter("No value to save")
         if len(values) > 4:
             raise InvalidParameter(
-                'Too many values to save for event "%s". It is limited to 4 values for now: %s'
-                % (event, values)
+                f'Too many values to save for event "{event}". It is limited to 4 values for now: {values}'
             )
 
         def get_value(value):
@@ -290,13 +291,11 @@ class Charts(CleepModule):
             )
             if infos["event"] != event:
                 raise CommandError(
-                    "Device %s cannot store values from event %s (stored for event %s)"
-                    % (device_uuid, event, infos["event"])
+                    f"Device {device_uuid} cannot store values from event {event} (stored for event {infos['event']})"
                 )
             if infos["valuescount"] != len(values):
                 raise CommandError(
-                    "Event %s is supposed to store %d values not %d"
-                    % (event, infos["valuescount"], len(values))
+                    f"Event {event} is supposed to store {infos['valuescount']} values not {len(values)}"
                 )
 
         # save values
@@ -370,7 +369,7 @@ class Charts(CleepModule):
         )
         row = self._cur.fetchone()
         if row is None:  # pragma: no cover
-            raise CommandError("Device %s not found!" % device_uuid)
+            raise CommandError(f"Device {device_uuid} not found!")
         return dict((self._cur.description[i][0], value) for i, value in enumerate(row))
 
     def _average_data(self, data, column_size):
@@ -455,23 +454,21 @@ class Charts(CleepModule):
             if "sort" in options and options["sort"] in ("asc", "desc"):
                 options_sort = options["sort"]
             if "limit" in options and isinstance(options["limit"], int):
-                options_limit = "LIMIT %d" % options["limit"]
+                options_limit = f"LIMIT {options['limit']}"
             if "average" in options and isinstance(options["average"], bool):
                 options_average = options["average"]
         self.logger.trace(
-            "options: fields=%s output=%s sort=%s limit=%s average=%s"
-            % (
-                options_fields,
-                options_output,
-                options_sort,
-                options_limit,
-                options_average,
-            )
+            "options: fields=%s output=%s sort=%s limit=%s average=%s",
+            options_fields,
+            options_output,
+            options_sort,
+            options_limit,
+            options_average,
         )
 
         # get device infos
         infos = self.__get_device_infos(device_uuid)
-        self.logger.trace("infos=%s" % infos)
+        self.logger.trace("infos=%s", infos)
 
         # prepare query options
         columns = []
@@ -492,20 +489,19 @@ class Charts(CleepModule):
         else:
             # get column associated to field name
             for options_field in options_fields:
-                for column in infos.keys():
-                    if column.startswith("value") and infos[column] == options_field:
-                        columns.append(column)
+                for (key, value) in infos.items():
+                    if key.startswith("value") and value == options_field:
+                        columns.append(key)
                         names.append(options_field)
 
         # get device data for each request columns
         data = None
         if options_output == "dict":
             # output as dict
-            query = (
-                "SELECT timestamp,%s FROM data%d WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp %s %s"
-                % (",".join(columns), infos["valuescount"], options_sort, options_limit)
-            )
-            self.logger.debug("Select query: %s" % query)
+            columns_str = ",".join(["timestamp"] + columns)
+            table_str = f"data{infos['valuescount']}"
+            query = f"SELECT {columns_str} FROM {table_str} WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp {options_sort} {options_limit}"
+            self.logger.debug("Select query: %s", query)
             self._cur.execute(query, (device_uuid, timestamp_start, timestamp_end))
             # @see http://stackoverflow.com/a/3287775
             results = self._cur.fetchall()
@@ -529,11 +525,10 @@ class Charts(CleepModule):
             # output as list
             data = {}
             for column in columns:
-                query = (
-                    "SELECT timestamp,%s FROM data%d WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp %s %s"
-                    % (column, infos["valuescount"], options_sort, options_limit)
-                )
-                self.logger.debug("Select query: %s" % query)
+                columns_str = ",".join(["timestamp"] + columns)
+                table_str = f"data{infos['valuescount']}"
+                query = f"SELECT {columns_str} FROM {table_str} WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp {options_sort} {options_limit}"
+                self.logger.debug("Select query: %s", query)
                 self._cur.execute(query, (device_uuid, timestamp_start, timestamp_end))
                 values = self._cur.fetchall()
                 data[infos[column]] = {
@@ -575,7 +570,7 @@ class Charts(CleepModule):
 
         # get device infos
         infos = self.__get_device_infos(device_uuid)
-        self.logger.debug("infos=%s" % infos)
+        self.logger.debug("infos=%s", infos)
 
         # prepare query parameters
         tablename = ""
@@ -589,10 +584,12 @@ class Charts(CleepModule):
             tablename = "data4"
 
         # prepare sql query
-        query = "DELETE FROM %s WHERE uuid=? AND timestamp<?" % tablename
+        query = f"DELETE FROM {tablename} WHERE uuid=? AND timestamp<?"
         self.logger.debug(
-            "Purge query: %s with device_uuid=%s, timestamp=%s"
-            % (query, device_uuid, timestamp_until)
+            "Purge query: %s with device_uuid=%s, timestamp=%s",
+            query,
+            device_uuid,
+            timestamp_until,
         )
 
         # execute query
@@ -620,7 +617,7 @@ class Charts(CleepModule):
 
         # get device infos
         infos = self.__get_device_infos(device_uuid)
-        self.logger.debug("infos=%s" % infos)
+        self.logger.debug("infos=%s", infos)
 
         # prepare query parameters
         tablename = ""
@@ -634,14 +631,14 @@ class Charts(CleepModule):
             tablename = "data4"
 
         # delete device data
-        query = "DELETE FROM %s WHERE uuid=?" % tablename
-        self.logger.debug("Data query: %s" % query)
+        query = f"DELETE FROM {tablename} WHERE uuid=?"
+        self.logger.debug("Data query: %s", query)
         self._cur.execute(query, (device_uuid,))
         self._cnx.commit()
 
         # delete device entry
         query = "DELETE FROM devices WHERE uuid=?"
-        self.logger.debug("Devices query: %s" % query)
+        self.logger.debug("Devices query: %s", query)
         self._cur.execute(query, (device_uuid,))
         self._cnx.commit()
 
@@ -654,7 +651,7 @@ class Charts(CleepModule):
         Args:
             event (MessageRequest): event
         """
-        self.logger.debug("Event received %s" % event)
+        self.logger.debug("Event received %s", event)
         if event["device_id"] is None:  # pragma: no cover
             # no device associated
             return
@@ -674,17 +671,17 @@ class Charts(CleepModule):
         # get event instance
         event_instance = self.events_broker.get_event_instance(event["event"])
         if not event_instance:
-            self.logger.debug('No event instance found for "%s"' % event["event"])
+            self.logger.debug('No event instance found for "%s"', event["event"])
             return
 
         # get and check chart values
         values = event_instance.get_chart_values(event["params"])
         if values is None:
-            self.logger.trace('No chart values for event "%s"' % event["event"])
+            self.logger.trace('No chart values for event "%s"', event["event"])
             return
         if not isinstance(values, list) or len(values) == 0:
             self.logger.debug(
-                'Invalid chart values for event "%s": %s' % (event["event"], values)
+                'Invalid chart values for event "%s": %s', event["event"], values
             )
             return
 
