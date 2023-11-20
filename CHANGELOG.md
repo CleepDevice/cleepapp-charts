@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED] - 2023-11-20
+### Changed
+- Update after core changes (on_event)
+- Move directives to angular components
+
+### Fixed
+- Fix issue in line data generation
+
 ## [1.1.3] - 2023-03-14
 ### Fixed
 - Improve code quality (black+lint)

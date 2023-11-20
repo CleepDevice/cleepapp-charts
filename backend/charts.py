@@ -29,11 +29,10 @@ class Charts(CleepModule):
     )
     MODULE_CATEGORY = "APPLICATION"
     MODULE_TAGS = ["sensors", "graphs", "charts", "database"]
-    MODULE_URLINFO = "https://github.com/CleepDevice/cleepmod-charts"
-    MODULE_URLHELP = "https://github.com/CleepDevice/cleepmod-charts/wiki"
+    MODULE_URLINFO = "https://github.com/CleepDevice/cleepapp-charts"
+    MODULE_URLHELP = "https://github.com/CleepDevice/cleepapp-charts/wiki"
     MODULE_URLSITE = None
-    MODULE_URLBUGS = "https://github.com/CleepDevice/cleepmod-charts/issues"
-
+    MODULE_URLBUGS = "https://github.com/CleepDevice/cleepapp-charts/issues"
     MODULE_CONFIG_FILE = "charts.conf"
 
     DATABASE_PATH = "/etc/cleep/charts"
@@ -380,6 +379,7 @@ class Charts(CleepModule):
             data (list): list of values
             column_size (int): number of columns
         """
+        self.logger.debug('Before average: %s', len(data))
         # compute reduce factor according to variable memory size
         factor = int(round(sys.getsizeof(data) / self.MAX_DATA_SIZE))
         if factor <= 0:
@@ -390,10 +390,13 @@ class Charts(CleepModule):
         # group and average data
         args = [iter(data)] * factor
         # cast to int ? return [numpy.nanmean(v, axis=0).astype(int).tolist() for v in ...
-        return [
+        new_data = [
             numpy.nanmean(v, axis=0).tolist()
             for v in list(zip_longest(*args, fillvalue=[numpy.nan] * column_size))
         ]
+        self.logger.debug('After average: %s', len(new_data))
+
+        return new_data
 
     def get_data(self, device_uuid, timestamp_start, timestamp_end, options=None):
         """
@@ -524,18 +527,16 @@ class Charts(CleepModule):
         else:
             # output as list
             data = {}
-            for column in columns:
-                columns_str = ",".join(["timestamp"] + columns)
-                table_str = f"data{infos['valuescount']}"
-                query = f"SELECT {columns_str} FROM {table_str} WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp {options_sort} {options_limit}"
-                self.logger.debug("Select query: %s", query)
-                self._cur.execute(query, (device_uuid, timestamp_start, timestamp_end))
-                values = self._cur.fetchall()
+            columns_str = ",".join(["timestamp"] + columns)
+            table_str = f"data{infos['valuescount']}"
+            query = f"SELECT {columns_str} FROM {table_str} WHERE uuid=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp {options_sort} {options_limit}"
+            self.logger.debug("Select query: %s", query)
+            self._cur.execute(query, (device_uuid, timestamp_start, timestamp_end))
+            values = self._average_data(self._cur.fetchall(), len(columns)) if options_average else self._cur.fetchall()
+            for index, column in enumerate(columns):
                 data[infos[column]] = {
                     "name": infos[column],
-                    "values": self._average_data(values, len(columns))
-                    if options_average
-                    else values,
+                    "values": [(val[0], val[index+1]) for val in values],
                 }
 
         return {
@@ -644,7 +645,7 @@ class Charts(CleepModule):
 
         return True
 
-    def event_received(self, event):
+    def on_event(self, event):
         """
         Event received, stored sensor data if possible
 
