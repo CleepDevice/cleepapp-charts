@@ -1,3 +1,4 @@
+from cleep.libs.tests import session
 import unittest
 import logging
 import sys
@@ -10,11 +11,13 @@ from cleep.exception import (
     CommandError,
     Unauthorized,
 )
-from cleep.libs.tests import session
 import os
 import sqlite3
 import time
-from mock import Mock
+from unittest.mock import Mock
+from cleep.libs.tests.common import get_log_level
+
+LOG_LEVEL = get_log_level()
 
 
 class FakeEvent:
@@ -28,7 +31,7 @@ class FakeEvent:
 class TestCharts(unittest.TestCase):
     def setUp(self):
         logging.basicConfig(
-            level=logging.FATAL,
+            level=LOG_LEVEL,
             format=u"%(asctime)s %(name)s:%(lineno)d %(levelname)s : %(message)s",
         )
         self.session = session.TestSession(self)
@@ -1029,7 +1032,7 @@ class TestCharts(unittest.TestCase):
             "Uuid should not be None",
         )
 
-    def test_event_received(self):
+    def test_on_event(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1044,7 +1047,7 @@ class TestCharts(unittest.TestCase):
 
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module.events_broker.get_event_instance.call_count,
             1,
@@ -1053,7 +1056,7 @@ class TestCharts(unittest.TestCase):
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 1, "Data1 should contain single record")
 
-    def test_event_received_delete_device(self):
+    def test_on_event_delete_device(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1065,12 +1068,12 @@ class TestCharts(unittest.TestCase):
         }
         self.module._delete_device = Mock()
 
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module._delete_device.call_count, 1, "_delete_device should be called"
         )
 
-    def test_event_received_event_not_found(self):
+    def test_on_event_event_not_found(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1082,7 +1085,7 @@ class TestCharts(unittest.TestCase):
         }
         self.module.events_broker.get_event_instance = Mock(return_value=None)
 
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module.events_broker.get_event_instance.call_count,
             1,
@@ -1091,7 +1094,7 @@ class TestCharts(unittest.TestCase):
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
 
-    def test_event_received_no_chart_value(self):
+    def test_on_event_no_chart_value(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1104,7 +1107,7 @@ class TestCharts(unittest.TestCase):
         fake_event = FakeEvent(None)
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
 
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module.events_broker.get_event_instance.call_count,
             1,
@@ -1113,7 +1116,7 @@ class TestCharts(unittest.TestCase):
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
 
-    def test_event_received_invalid_chart_value(self):
+    def test_on_event_invalid_chart_value(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1126,23 +1129,23 @@ class TestCharts(unittest.TestCase):
 
         fake_event = FakeEvent({})
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
-        self.module.event_received(event)
+        self.module.on_event(event)
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
 
         fake_event = FakeEvent(666)
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
-        self.module.event_received(event)
+        self.module.on_event(event)
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
 
         fake_event = FakeEvent("evil")
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
-        self.module.event_received(event)
+        self.module.on_event(event)
         count = self.__get_table_count("data1", uuid)
         self.assertEqual(count, 0, "Data1 should be empty")
 
-    def test_event_received_single_true_value(self):
+    def test_on_event_single_true_value(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1155,7 +1158,7 @@ class TestCharts(unittest.TestCase):
         fake_event = FakeEvent([{"field": "test", "value": True}])
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
 
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module.events_broker.get_event_instance.call_count,
             1,
@@ -1169,7 +1172,7 @@ class TestCharts(unittest.TestCase):
             rows[1][3], 1, "1 value should be inserted instead of real value"
         )
 
-    def test_event_received_single_false_value(self):
+    def test_on_event_single_false_value(self):
         self.init()
         uuid = "123-456-789"
         event = {
@@ -1182,7 +1185,7 @@ class TestCharts(unittest.TestCase):
         fake_event = FakeEvent([{"field": "test", "value": False}])
         self.module.events_broker.get_event_instance = Mock(return_value=fake_event)
 
-        self.module.event_received(event)
+        self.module.on_event(event)
         self.assertEqual(
             self.module.events_broker.get_event_instance.call_count,
             1,
