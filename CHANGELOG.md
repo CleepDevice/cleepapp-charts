@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED] - 2023-11-20
+## [1.2.0] - 2024-10-15
 ### Changed
 - Update after core changes (on_event)
 - Move directives to angular components

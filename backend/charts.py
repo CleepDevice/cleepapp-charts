@@ -20,7 +20,7 @@ class Charts(CleepModule):
     """
 
     MODULE_AUTHOR = "Cleep"
-    MODULE_VERSION = "1.1.3"
+    MODULE_VERSION = "1.2.0"
     MODULE_DEPS = []
     MODULE_DESCRIPTION = "Follow easily your sensors values graphically."
     MODULE_LONGDESCRIPTION = (
